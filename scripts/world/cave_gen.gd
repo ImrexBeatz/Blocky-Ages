@@ -45,7 +45,7 @@ func setup(d: Dictionary, s: int, key: String) -> void:
 	var b: Dictionary = biomes[0]
 	floor_col = U.vary(b["deep"], 0.2, 0.3)
 	wall_col = U.vary(b["deep"], 0.25, 0.75)
-	wall_top = Color(0.08, 0.07, 0.09)
+	wall_top = Color(0.2, 0.18, 0.22)
 	glow_col = {"verdant": Color("#7affb0"), "ember": Color("#ff7a2a"), "frost": Color("#9ce0ff"), "spore": Color("#9cff6a"), "void": Color("#d07aff")}[dim_id]
 	_generate()
 

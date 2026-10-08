@@ -39,7 +39,7 @@ const MAP_SCALE := 1.5
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	theme = K.theme()
 	_build()
@@ -67,14 +67,27 @@ func _panel(pos_preset: int) -> PanelContainer:
 	sb.set_content_margin_all(8)
 	p.add_theme_stylebox_override("panel", sb)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.set_meta("preset", pos_preset)
 	add_child(p)
-	p.set_anchors_preset(pos_preset)
 	return p
+
+
+func _place(c: Control, margin := 16) -> void:
+	var preset: int = c.get_meta("preset", Control.PRESET_TOP_LEFT)
+	c.set_anchors_and_offsets_preset(preset, Control.PRESET_MODE_MINSIZE, margin)
+	match preset:
+		Control.PRESET_TOP_RIGHT:
+			c.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		Control.PRESET_CENTER_BOTTOM:
+			c.grow_horizontal = Control.GROW_DIRECTION_BOTH
+			c.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		Control.PRESET_CENTER_TOP:
+			c.grow_horizontal = Control.GROW_DIRECTION_BOTH
 
 
 func _build() -> void:
 	vignette = ColorRect.new()
-	vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var vs := Shader.new()
 	vs.code = """
@@ -92,7 +105,6 @@ void fragment() {
 	add_child(vignette)
 	# Top-left: realm info
 	var tl := _panel(Control.PRESET_TOP_LEFT)
-	tl.position = Vector2(16, 16)
 	var tlv := K.vbox(2)
 	tl.add_child(tlv)
 	realm_label = K.label("", 20, K.GOLD)
@@ -107,10 +119,9 @@ void fragment() {
 	tlv.add_child(region_label)
 	tlv.add_child(row)
 	tlv.add_child(points_label)
+	_place(tl)
 	# Top-right: minimap + quest
 	var tr := _panel(Control.PRESET_TOP_RIGHT)
-	tr.position = Vector2(-16, 16)
-	tr.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	var trv := K.vbox(6)
 	tr.add_child(trv)
 	map_rect = TextureRect.new()
@@ -122,7 +133,7 @@ void fragment() {
 	map_rect.texture = map_tex
 	trv.add_child(map_rect)
 	map_overlay = Control.new()
-	map_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	map_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	map_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	map_rect.add_child(map_overlay)
 	map_overlay.draw.connect(_draw_map_overlay)
@@ -134,11 +145,9 @@ void fragment() {
 	quest_prog.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	trv.add_child(quest_title)
 	trv.add_child(quest_prog)
+	_place(tr)
 	# Bottom hotbar
 	var bot := _panel(Control.PRESET_CENTER_BOTTOM)
-	bot.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	bot.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	bot.position.y = -16
 	var bv := K.vbox(6)
 	bot.add_child(bv)
 	var hb := K.hbox(10)
@@ -154,9 +163,9 @@ void fragment() {
 	hp_bar.show_percentage = false
 	hpv.add_child(hp_bar)
 	hp_text = K.label("", 16, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
-	hp_text.set_anchors_preset(Control.PRESET_FULL_RECT)
-	hp_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hp_bar.add_child(hp_text)
+	hp_text.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hp_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	roll_bar = ProgressBar.new()
 	roll_bar.custom_minimum_size = Vector2(340, 6)
 	roll_bar.show_percentage = false
@@ -182,16 +191,15 @@ void fragment() {
 	xr.add_child(lvl_label)
 	xr.add_child(xp_bar)
 	bv.add_child(xr)
+	_place(bot)
 	# Interaction prompt
 	prompt_label = K.label("", 20, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
-	prompt_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	prompt_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	prompt_label.position.y = -170
 	add_child(prompt_label)
+	prompt_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_KEEP_WIDTH, 170)
+	prompt_label.offset_left = -500
+	prompt_label.offset_right = 500
 	# Boss bar
 	boss_panel = _panel(Control.PRESET_CENTER_TOP)
-	boss_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	boss_panel.position.y = 16
 	var bpv := K.vbox(4)
 	boss_panel.add_child(bpv)
 	boss_name = K.label("", 22, Color("#ffb0a0"), HORIZONTAL_ALIGNMENT_CENTER)
@@ -203,39 +211,40 @@ void fragment() {
 	bf.bg_color = Color("#a32a4a")
 	boss_bar.add_theme_stylebox_override("fill", bf)
 	bpv.add_child(boss_bar)
+	_place(boss_panel)
 	boss_panel.visible = false
 	powerup_box = K.hbox(8)
-	powerup_box.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	powerup_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	powerup_box.position.y = 110
+	powerup_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	powerup_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(powerup_box)
+	powerup_box.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_KEEP_WIDTH, 112)
+	powerup_box.offset_left = -500
+	powerup_box.offset_right = 500
 	# Notifications
 	notes = K.vbox(4)
-	notes.set_anchors_preset(Control.PRESET_CENTER_LEFT)
-	notes.position = Vector2(18, -60)
 	notes.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(notes)
+	notes.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT, Control.PRESET_MODE_MINSIZE, 18)
+	notes.offset_top = -40
+	notes.offset_right = 700
 	# Banner
 	banner = K.label("", 46, K.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	banner.add_theme_constant_override("outline_size", 10)
-	banner.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	banner.position.y = 150
 	banner.modulate.a = 0.0
 	add_child(banner)
+	banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_KEEP_WIDTH, 150)
+	banner.offset_left = -700
+	banner.offset_right = 700
 	banner_sub = K.label("", 22, K.PARCH, HORIZONTAL_ALIGNMENT_CENTER)
-	banner_sub.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	banner_sub.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	banner_sub.position.y = 210
-	banner_sub.custom_minimum_size.x = 900
 	banner_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	banner_sub.modulate.a = 0.0
 	add_child(banner_sub)
+	banner_sub.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_KEEP_WIDTH, 212)
+	banner_sub.offset_left = -480
+	banner_sub.offset_right = 480
 	var help := K.label("[I] Inventory  [J] Quests  [P] Skills  [M] Map  [C] Codex  [Esc] Menu", 14, K.DIM)
-	help.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	help.position = Vector2(16, -30)
 	add_child(help)
+	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 12)
 
 
 func _slot(icon_kind: String, c: Color, key: String) -> Array:
@@ -244,7 +253,7 @@ func _slot(icon_kind: String, c: Color, key: String) -> Array:
 	ic.texture = K.icon(icon_kind, c)
 	ic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ic.offset_left = 7
 	ic.offset_top = 7
 	ic.offset_right = -7
@@ -260,8 +269,8 @@ func _slot(icon_kind: String, c: Color, key: String) -> Array:
 	kl.position = Vector2(3, -2)
 	p.add_child(kl)
 	var cnt := K.label("", 15, Color.WHITE, HORIZONTAL_ALIGNMENT_RIGHT)
-	cnt.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	cnt.position = Vector2(-26, -24)
+	cnt.position = Vector2(4, 34)
+	cnt.size = Vector2(50, 22)
 	p.add_child(cnt)
 	return [p, cnt, cd, ic]
 

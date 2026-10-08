@@ -25,6 +25,8 @@ var time_of_day := 0.3
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_setup_input()
+	RenderingServer.global_shader_parameter_add("player_pos", RenderingServer.GLOBAL_VAR_TYPE_VEC3, Vector3(0, -9999, 0))
+	RenderingServer.global_shader_parameter_add("cam_pos", RenderingServer.GLOBAL_VAR_TYPE_VEC3, Vector3(0, -9999, 0))
 
 
 func _key(action: String, keys: Array, mouse := -1, joy := -1) -> void:

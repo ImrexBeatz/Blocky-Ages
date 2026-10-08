@@ -53,6 +53,13 @@ func _ready() -> void:
 	rebuild_model()
 	State.inventory_changed.connect(rebuild_model)
 	State.stats_changed.connect(_on_stats)
+	State.leveled_up.connect(func(_l):
+		if is_inside_tree():
+			hp = max_hp
+			FX.burst(global_position + Vector3(0, 1, 0), Color("#ffd84a"), 40, 6.0, 0.16, 1.0, 3.0)
+			FX.ring(global_position, 4.0, Color("#ffd84a"), 0.7)
+			FX.light_flash(global_position, Color("#ffd84a"), 6.0, 12.0, 0.8)
+			FX.beam(global_position, global_position + Vector3(0, 14, 0), Color("#ffe9a0"), 0.8, 0.8))
 	_on_stats()
 	hp = max_hp
 
@@ -99,10 +106,6 @@ func rebuild_model() -> void:
 	model.rotation.y = rot
 	if has_powerup("giant"):
 		model.scale = Vector3.ONE * 1.5
-	for mi in meshes:
-		var mat: Material = mi.material_override.duplicate()
-		mat.next_pass = U.silhouette_material()
-		mi.material_override = mat
 
 
 func has_powerup(id: String) -> bool:
@@ -184,6 +187,12 @@ func _physics_process(delta: float) -> void:
 		spd *= 1.0 + buffs["haste"]["power"]
 	if attack_t > 0.0:
 		spd *= 0.45
+	var gnow: float = Game.world.ground_at(global_position.x, global_position.z) if Game.world else 0.0
+	var wading := gnow > -500.0 and absf(gnow - round(gnow)) > 0.3
+	if wading:
+		spd *= 0.7
+		if Game.world.surface_gen and Game.world.surface_gen.liquid == "toxic" and not Game.world.in_cave and not status.has("poison"):
+			apply_status("poison", 2.0, max_hp * 0.02)
 	if dash_t > 0.0:
 		dash_t -= delta
 		move_flat(dash_dir * dash_speed * delta)
@@ -293,6 +302,9 @@ func _timers(delta: float) -> void:
 
 func _aim() -> void:
 	if Game.camera == null:
+		return
+	if not Input.get_connected_joypads().is_empty() and Input.get_vector("move_left", "move_right", "move_up", "move_down").length() > 0.2:
+		aim_point = global_position + facing * 6.0
 		return
 	var vp := get_viewport()
 	var mp := vp.get_mouse_position()
@@ -436,8 +448,8 @@ func _melee_hit() -> void:
 		Sfx.play("hit", randf_range(0.9, 1.1), -4.0)
 		if finisher:
 			Game.add_shake(0.12)
-	var tip := global_position + facing * (rng * 0.7) + Vector3(0, 1.0, 0)
-	FX.burst(tip, Color(1, 1, 1, 0.8), 5, 2.0, 0.08, 0.2, 0.5)
+	var sc: Color = md.get("color", Color.WHITE)
+	FX.swipe(global_position, facing, rng, arc, sc.lerp(Color.WHITE, 0.6) if not finisher else Color("#ffd84a"))
 
 
 func _global_mult() -> float:

@@ -147,7 +147,7 @@ func _refresh_equipment() -> void:
 			ic.texture = K.icon("lock", Color("#6a6070"))
 			ic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+			ic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 			ic.offset_left = 14; ic.offset_top = 14; ic.offset_right = -14; ic.offset_bottom = -14
 			lb.add_child(ic)
 			row.add_child(lb)

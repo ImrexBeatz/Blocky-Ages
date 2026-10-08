@@ -166,3 +166,37 @@ static func light_flash(pos: Vector3, color: Color, energy := 4.0, rng := 8.0, d
 	var tw := l.create_tween()
 	tw.tween_property(l, "light_energy", 0.0, dur)
 	tw.tween_callback(l.queue_free)
+
+
+## A quick translucent arc showing the sweep of a melee swing.
+static func swipe(pos: Vector3, facing: Vector3, radius: float, arc_deg: float, color: Color) -> void:
+	var parent := _parent()
+	if parent == null:
+		return
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var segs := 14
+	var half := deg_to_rad(minf(arc_deg, 359.0) * 0.5)
+	var base := atan2(facing.x, facing.z)
+	var r_in := radius * 0.45
+	for i in segs:
+		var a0 := base - half + (2.0 * half) * i / segs
+		var a1 := base - half + (2.0 * half) * (i + 1) / segs
+		var p0 := Vector3(sin(a0), 0, cos(a0))
+		var p1 := Vector3(sin(a1), 0, cos(a1))
+		st.add_vertex(p0 * r_in)
+		st.add_vertex(p0 * radius)
+		st.add_vertex(p1 * radius)
+		st.add_vertex(p0 * r_in)
+		st.add_vertex(p1 * radius)
+		st.add_vertex(p1 * r_in)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var mat := U.unshaded(Color(color.r, color.g, color.b, 0.45)).duplicate()
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+	mi.global_position = pos + Vector3(0, 1.0, 0)
+	var tw := mi.create_tween()
+	tw.tween_property(mat, "albedo_color:a", 0.0, 0.18)
+	tw.tween_callback(mi.queue_free)

@@ -22,15 +22,15 @@ func setup(p_lines: Array, p_speaker := "", p_slides := true) -> void:
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = K.theme()
 	if slides:
 		var bg := ColorRect.new()
 		bg.color = Color(0.01, 0.01, 0.02, 1.0)
-		bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		add_child(bg)
 		var center := CenterContainer.new()
-		center.set_anchors_preset(Control.PRESET_FULL_RECT)
+		center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		add_child(center)
 		var v := K.vbox(30)
 		center.add_child(v)
@@ -47,14 +47,10 @@ func _ready() -> void:
 	else:
 		var dim := ColorRect.new()
 		dim.color = Color(0, 0, 0, 0.35)
-		dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+		dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		add_child(dim)
 		var panel := PanelContainer.new()
-		panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 		panel.custom_minimum_size = Vector2(1100, 230)
-		panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-		panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-		panel.position.y = -40
 		add_child(panel)
 		var v := K.vbox(10)
 		panel.add_child(v)
@@ -68,6 +64,9 @@ func _ready() -> void:
 		row.alignment = BoxContainer.ALIGNMENT_END
 		row.add_child(K.button("Continue  [Space]", _next, 220))
 		v.add_child(row)
+		panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 40)
+		panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_show()
 
 

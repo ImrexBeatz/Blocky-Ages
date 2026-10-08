@@ -80,9 +80,9 @@ func _setup_environment() -> void:
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.tonemap_exposure = 1.0
 	e.glow_enabled = true
-	e.glow_intensity = 0.7
-	e.glow_bloom = 0.08
-	e.glow_hdr_threshold = 0.9
+	e.glow_intensity = 0.55
+	e.glow_bloom = 0.04
+	e.glow_hdr_threshold = 1.1
 	e.ssao_enabled = true
 	e.ssao_radius = 1.6
 	e.ssao_intensity = 2.2
@@ -127,11 +127,11 @@ func apply_environment() -> void:
 		sky_mat.sky_horizon_color = Color(0.03, 0.03, 0.04)
 		sky_mat.ground_horizon_color = Color(0.02, 0.02, 0.02)
 		sky_mat.ground_bottom_color = Color(0, 0, 0)
-		e.ambient_light_energy = 0.35
+		e.ambient_light_energy = 0.7
 		e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		e.ambient_light_color = Color(0.35, 0.33, 0.4)
+		e.ambient_light_color = Color(0.42, 0.38, 0.48)
 		e.fog_light_color = Color(0.02, 0.02, 0.03)
-		e.fog_density = 0.035
+		e.fog_density = 0.02
 		sun.light_energy = 0.12
 		sun.light_color = Color(0.6, 0.6, 0.8)
 	else:
@@ -142,9 +142,9 @@ func apply_environment() -> void:
 		sky_mat.sun_angle_max = 20.0
 		e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		e.ambient_light_color = d["ambient"]
-		e.ambient_light_energy = 0.75
+		e.ambient_light_energy = 0.6
 		e.fog_light_color = d["fog"]
-		e.fog_density = d["fog_density"]
+		e.fog_density = d["fog_density"] * 0.35
 		sun.light_color = d["sun"]
 		sun.light_energy = d["sun_energy"]
 	_setup_particles(d["particles"] if not in_cave else "dust")
@@ -434,7 +434,7 @@ func _build_chunk(k: Vector2i) -> void:
 		node.add_child(lm)
 	var lights := 0
 	for l in data["lights"]:
-		if lights >= 5:
+		if lights >= 4:
 			break
 		lights += 1
 		var ol := OmniLight3D.new()
@@ -442,6 +442,9 @@ func _build_chunk(k: Vector2i) -> void:
 		ol.light_energy = 1.4
 		ol.omni_range = l["range"]
 		ol.omni_attenuation = 1.4
+		ol.distance_fade_enabled = true
+		ol.distance_fade_begin = 38.0
+		ol.distance_fade_length = 10.0
 		node.add_child(ol)
 		ol.position = l["pos"]
 	var rec := {"node": node, "heights": data["heights"], "colors": data["colors"], "blocked": data["blocked"], "nodes": [], "mobs": []}
@@ -680,6 +683,11 @@ func _update_camera(delta: float) -> void:
 		Game.shake = maxf(0.0, Game.shake - delta * 2.5)
 	camera.global_position = cam_rig.global_position + shake
 	camera.look_at(cam_rig.global_position - offset, Vector3.UP)
+	if not menu_mode and player:
+		RenderingServer.global_shader_parameter_set("player_pos", player.global_position)
+		RenderingServer.global_shader_parameter_set("cam_pos", camera.global_position)
+	else:
+		RenderingServer.global_shader_parameter_set("player_pos", Vector3(0, -9999, 0))
 
 
 func _day_night(delta: float) -> void:
@@ -698,7 +706,7 @@ func _day_night(delta: float) -> void:
 	var e := env.environment
 	sun.light_energy = lerpf(0.18, d["sun_energy"], day)
 	sun.light_color = Color(0.55, 0.65, 1.0).lerp(d["sun"], day)
-	e.ambient_light_energy = lerpf(0.35, 0.75, day)
+	e.ambient_light_energy = lerpf(0.3, 0.6, day)
 	sky_mat.sky_top_color = Color(0.02, 0.03, 0.09).lerp(d["sky_top"], day)
 	sky_mat.sky_horizon_color = Color(0.08, 0.08, 0.18).lerp(d["sky_horizon"], day)
 	e.fog_light_color = Color(0.06, 0.07, 0.14).lerp(d["fog"], day)

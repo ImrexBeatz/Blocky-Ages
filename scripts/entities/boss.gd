@@ -37,10 +37,10 @@ func setup_boss(d: Dictionary, lvl: int, center: Vector3) -> void:
 	m.scale = Vector3.ONE * scale_f
 	set_model(m, d["model"])
 	var l := OmniLight3D.new()
-	l.light_color = d["c3"]
-	l.light_energy = 2.0
-	l.omni_range = 6.0 * scale_f * 0.5
-	l.position.y = 2.0 * scale_f * 0.5
+	l.light_color = Color(d["c3"]).lerp(Color.WHITE, 0.55)
+	l.light_energy = 0.9
+	l.omni_range = 3.0 * scale_f
+	l.position.y = 0.4
 	add_child(l)
 	_make_bar()
 	hp_bar.visible = false

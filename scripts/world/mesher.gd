@@ -21,12 +21,29 @@ static func terrain_material() -> ShaderMaterial:
 shader_type spatial;
 render_mode cull_back, diffuse_burley;
 uniform sampler2D detail : filter_nearest, repeat_enable, source_color;
+global uniform vec3 player_pos;
+global uniform vec3 cam_pos;
+varying vec3 wpos;
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
 void fragment() {
+	// Dither away geometry between the camera and the hero so they are never hidden.
+	vec3 a = cam_pos;
+	vec3 ab = player_pos + vec3(0.0, 1.0, 0.0) - a;
+	float t = clamp(dot(wpos - a, ab) / dot(ab, ab), 0.0, 1.0);
+	float dist = length(wpos - (a + ab * t));
+	if (t < 0.985 && wpos.y > player_pos.y + 1.4 && dist < 3.2) {
+		ivec2 px = ivec2(FRAGCOORD.xy);
+		if (dist < 2.3 || (px.x + px.y) % 2 == 0) {
+			discard;
+		}
+	}
 	vec3 d = texture(detail, UV).rgb;
 	vec3 c = pow(COLOR.rgb, vec3(2.2)) * d;
 	ALBEDO = c;
 	ROUGHNESS = 0.92;
-	EMISSION = c * (1.0 - COLOR.a) * 4.0;
+	EMISSION = c * (1.0 - COLOR.a) * 2.2;
 }
 """
 	_terrain_mat = ShaderMaterial.new()
@@ -67,10 +84,10 @@ void fragment() {
 	m.set_shader_parameter("tint", c)
 	match kind:
 		"lava":
-			m.set_shader_parameter("emit", 2.2)
+			m.set_shader_parameter("emit", 1.15)
 			m.set_shader_parameter("wave", 0.04)
 		"toxic":
-			m.set_shader_parameter("emit", 0.9)
+			m.set_shader_parameter("emit", 0.6)
 		"ice":
 			m.set_shader_parameter("wave", 0.0)
 	_liquid_mats[kind] = m

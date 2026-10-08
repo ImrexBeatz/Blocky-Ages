@@ -216,6 +216,8 @@ func village_in_cell(cx: int, cz: int) -> Dictionary:
 
 
 func village_for_pos(fx: float, fz: float) -> Dictionary:
+	if fx * fx + fz * fz < (VRADIUS + VBLEND) * (VRADIUS + VBLEND):
+		return village_in_cell(0, 0)
 	var v := village_in_cell(int(floor(fx / VCELL)), int(floor(fz / VCELL)))
 	if v.is_empty():
 		return v
@@ -235,6 +237,9 @@ func villages_near(p: Vector3, radius: float) -> Array:
 			var v := village_in_cell(cx, cz)
 			if not v.is_empty() and Vector2(p.x - v["x"], p.z - v["z"]).length() < radius:
 				out.append(v)
+	var o := village_in_cell(0, 0)
+	if not o in out and Vector2(p.x, p.z).length() < radius:
+		out.append(o)
 	return out
 
 
@@ -399,7 +404,7 @@ func find_nearest_poi(type: String, from: Vector3, max_r := 400.0) -> Dictionary
 
 func spawn_point() -> Vector3:
 	var v := village_in_cell(0, 0)
-	return Vector3(v["x"] + 0.5, v["base"], v["z"] - 3.5)
+	return Vector3(v["x"] + 3.5, v["base"], v["z"] + 6.0)
 
 
 # ---------------------------------------------------------------- chunk building
@@ -597,7 +602,7 @@ func _tree(m: Mesher, type: String, x: int, h: int, z: int, hsh: int, out: Dicti
 		"oak", "swamp":
 			var th := 4 + hsh % 3
 			m.box(Vector3(fx, fy, fz), Vector3(fx + 1, fy + th, fz + 1), Color("#6b4a2b"))
-			var lc := Color("#3f8a2a") if type == "oak" else Color("#3a5a22")
+			var lc := Color("#3f8a2a") if type == "oak" else Color("#4a7a2a")
 			_leaf_blob(m, fx, fy + th - 1, fz, 2, 2, lc, hsh)
 			_leaf_blob(m, fx, fy + th + 1, fz, 1, 1, lc, hsh + 1)
 			if type == "swamp":
@@ -769,11 +774,15 @@ func _build_piece(m: Mesher, p: Dictionary, v: Dictionary, out: Dictionary) -> v
 			_block_rect(out, int(x), int(z), w, d)
 		"center":
 			if p["origin"] and dim_id == "verdant":
-				m.box(Vector3(x - 1.5, y, z - 1.5), Vector3(x + 1.5, y + 11, z + 1.5), Color("#5a3e22"))
-				for r in [Vector3(-1.5, 0, 0), Vector3(1.5, 0, 0), Vector3(0, 0, 1.5), Vector3(0, 0, -1.5)]:
-					m.box(Vector3(x + r.x - 0.6, y, z + r.z - 0.6), Vector3(x + r.x + 0.6, y + 1.2, z + r.z + 0.6), Color("#5a3e22"))
-				_leaf_blob(m, x - 0.5, y + 9, z - 0.5, 5, 3, Color("#3f8a2a"), 7)
-				_leaf_blob(m, x - 0.5, y + 12, z - 0.5, 3, 2, Color("#4a9a32"), 9)
+				m.box(Vector3(x - 1.0, y, z - 1.0), Vector3(x + 1.0, y + 8, z + 1.0), Color("#5a3e22"))
+				for r in [Vector3(-1.2, 0, 0), Vector3(1.2, 0, 0), Vector3(0, 0, 1.2), Vector3(0, 0, -1.2)]:
+					m.box(Vector3(x + r.x - 0.5, y, z + r.z - 0.5), Vector3(x + r.x + 0.5, y + 1.0, z + r.z + 0.5), Color("#5a3e22"))
+				_leaf_blob(m, x - 0.5, y + 7, z - 0.5, 4, 2, Color("#3f8a2a"), 7)
+				_leaf_blob(m, x - 0.5, y + 9, z - 0.5, 2, 2, Color("#4a9a32"), 9)
+				for i in 6:
+					var ga := TAU * i / 6.0
+					m.box(Vector3(x + cos(ga) * 3.5 - 0.15, y + 7.2, z + sin(ga) * 3.5 - 0.15), Vector3(x + cos(ga) * 3.5 + 0.15, y + 7.6, z + sin(ga) * 3.5 + 0.15), Color(1.0, 0.85, 0.4, 0.0))
+				out["lights"].append({"pos": Vector3(x, y + 6.0, z), "color": Color("#ffd27a"), "range": 12.0})
 				_block_rect(out, int(x) - 2, int(z) - 2, 4, 4)
 			else:
 				# Plaza well / centrepiece, themed per realm.

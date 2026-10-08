@@ -9,10 +9,10 @@ signal show_controls
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = K.theme()
 	var shade := ColorRect.new()
-	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sh := Shader.new()
 	sh.code = """
@@ -28,8 +28,6 @@ void fragment() {
 	shade.material = sm
 	add_child(shade)
 	var v := K.vbox(14)
-	v.set_anchors_preset(Control.PRESET_CENTER_LEFT)
-	v.position = Vector2(110, -250)
 	add_child(v)
 	var t1 := K.label("BLOCKY", 96, Color("#f2c14e"))
 	t1.add_theme_constant_override("outline_size", 18)
@@ -37,7 +35,6 @@ void fragment() {
 	var t2 := K.label("DUNGEONS", 96, Color("#ffe9b0"))
 	t2.add_theme_constant_override("outline_size", 18)
 	t2.add_theme_color_override("font_outline_color", Color("#3a2410"))
-	t2.position.y = -30
 	v.add_child(t1)
 	v.add_child(t2)
 	var sub := K.label("SHARDS OF THE PRISM", 26, Color("#c48aff"))
@@ -54,10 +51,11 @@ void fragment() {
 			new_game.emit(), 320, 24))
 	v.add_child(K.button("Controls", func(): show_controls.emit(), 320, 24))
 	v.add_child(K.button("Quit", func(): get_tree().quit(), 320, 24))
+	v.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT, Control.PRESET_MODE_MINSIZE, 110)
 	var foot := K.label("Five realms. Twenty bosses. An endless world.   v1.0", 16, K.DIM)
-	foot.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	foot.position = Vector2(110, -46)
 	add_child(foot)
+	foot.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 40)
+	foot.offset_left = 110
 	if not cont.disabled:
 		cont.grab_focus()
 

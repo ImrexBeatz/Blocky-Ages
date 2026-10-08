@@ -60,7 +60,7 @@ func _ready() -> void:
 	add_child(overlay)
 	fade = ColorRect.new()
 	fade.color = Color(0, 0, 0, 0)
-	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(fade)
 	Game.open_screen.connect(_on_open_screen)
@@ -365,9 +365,9 @@ func _loading_text(t: String) -> void:
 	_clear_loading()
 	var l := K.label(t, 30, K.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	l.name = "Loading"
-	l.set_anchors_preset(Control.PRESET_CENTER)
-	l.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	overlay.add_child(l)
+	l.set_anchors_and_offsets_preset(Control.PRESET_CENTER, Control.PRESET_MODE_MINSIZE)
+	l.grow_horizontal = Control.GROW_DIRECTION_BOTH
 
 
 func _clear_loading() -> void:

@@ -23,7 +23,7 @@ func _ready() -> void:
 	rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	cols.add_child(rect)
 	overlay = Control.new()
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.add_child(overlay)
 	overlay.draw.connect(_draw_overlay)
