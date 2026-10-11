@@ -4,6 +4,10 @@ extends RefCounted
 const U = preload("res://scripts/core/util.gd")
 
 static var _terrain_mat: ShaderMaterial
+static var _props_mat: ShaderMaterial
+static var _shader_dither: Shader
+static var _shader_plain: Shader
+static var _dither := true
 static var _liquid_mats := {}
 
 var v := PackedVector3Array()
@@ -13,11 +17,7 @@ var uv := PackedVector2Array()
 var idx := PackedInt32Array()
 
 
-static func terrain_material() -> ShaderMaterial:
-	if _terrain_mat:
-		return _terrain_mat
-	var sh := Shader.new()
-	sh.code = """
+const _TERRAIN_SHADER := """
 shader_type spatial;
 render_mode cull_back, diffuse_burley;
 uniform sampler2D detail : filter_nearest, repeat_enable, source_color;
@@ -28,6 +28,7 @@ void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 void fragment() {
+#ifdef SEE_THROUGH
 	// Dither away geometry between the camera and the hero so they are never hidden.
 	vec3 a = cam_pos;
 	vec3 ab = player_pos + vec3(0.0, 1.0, 0.0) - a;
@@ -39,6 +40,7 @@ void fragment() {
 			discard;
 		}
 	}
+#endif
 	vec3 d = texture(detail, UV).rgb;
 	vec3 c = pow(COLOR.rgb, vec3(2.2)) * d;
 	ALBEDO = c;
@@ -46,10 +48,37 @@ void fragment() {
 	EMISSION = c * (1.0 - COLOR.a) * 2.2;
 }
 """
+
+
+static func terrain_material() -> ShaderMaterial:
+	if _terrain_mat:
+		return _terrain_mat
+	_shader_dither = Shader.new()
+	_shader_dither.code = _TERRAIN_SHADER.replace("void fragment() {", "#define SEE_THROUGH\nvoid fragment() {")
+	_shader_plain = Shader.new()
+	_shader_plain.code = _TERRAIN_SHADER
 	_terrain_mat = ShaderMaterial.new()
-	_terrain_mat.shader = sh
+	_terrain_mat.shader = _shader_dither if _dither else _shader_plain
 	_terrain_mat.set_shader_parameter("detail", U.face_texture())
 	return _terrain_mat
+
+
+## Trees, buildings and props always fade out between camera and hero (they are a small share of pixels).
+static func props_material() -> ShaderMaterial:
+	if _props_mat:
+		return _props_mat
+	terrain_material()
+	_props_mat = ShaderMaterial.new()
+	_props_mat.shader = _shader_dither
+	_props_mat.set_shader_parameter("detail", U.face_texture())
+	return _props_mat
+
+
+## The see-through dither on ground terrain uses `discard`, which is costly on tile-based mobile GPUs (PowerVR), so low quality turns it off.
+static func set_dither(on: bool) -> void:
+	_dither = on
+	if _terrain_mat:
+		_terrain_mat.shader = _shader_dither if on else _shader_plain
 
 
 static func liquid_material(kind: String, c: Color) -> ShaderMaterial:

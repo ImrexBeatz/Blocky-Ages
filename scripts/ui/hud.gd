@@ -34,11 +34,16 @@ var prompt_label: Label
 var powerup_box: HBoxContainer
 var vignette: ColorRect
 var points_label: Label
-const MAP_PX := 90
-const MAP_SCALE := 1.5
+var MAP_PX := 90
+var MAP_SCALE := 1.5
+var map_rate := 0.35
+var fps_label: Label
 
 
 func _ready() -> void:
+	MAP_PX = Settings.v["minimap_px"]
+	MAP_SCALE = 135.0 / MAP_PX
+	map_rate = Settings.v["minimap_rate"]
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	theme = K.theme()
@@ -245,6 +250,10 @@ void fragment() {
 	var help := K.label("[I] Inventory  [J] Quests  [P] Skills  [M] Map  [C] Codex  [Esc] Menu", 14, K.DIM)
 	add_child(help)
 	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 12)
+	help.visible = not Settings.is_mobile
+	fps_label = K.label("", 16, Color("#8aff8a"))
+	add_child(fps_label)
+	fps_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE, 2)
 
 
 func _slot(icon_kind: String, c: Color, key: String) -> Array:
@@ -428,8 +437,10 @@ func _process(delta: float) -> void:
 		banner_sub.modulate.a = a
 	map_t -= delta
 	if map_t <= 0.0:
-		map_t = 0.35
+		map_t = map_rate
 		_update_map()
+		fps_label.visible = Settings.show_fps
+		fps_label.text = "%d FPS  (%s)" % [Engine.get_frames_per_second(), Settings.PRESET_NAMES[Settings.effective()]]
 		for c in powerup_box.get_children():
 			var pid: String = c.get_meta("pid", "")
 			if Game.player.powerups.has(pid):

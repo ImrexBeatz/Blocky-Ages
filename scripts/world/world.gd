@@ -12,9 +12,7 @@ const Interactable = preload("res://scripts/entities/interactable.gd")
 const Pickup = preload("res://scripts/entities/pickup.gd")
 
 const CHUNK := 16
-const LOAD_R := 3
-const UNLOAD_R := 5
-const MAX_ENEMIES := 40
+const Mesher = preload("res://scripts/world/mesher.gd")
 
 var gen
 var surface_gen
@@ -51,6 +49,14 @@ var last_region_check := 0.0
 var quest_target_cache = null
 var quest_target_t := 0.0
 var player: Node3D
+var job := {}
+var job_key := Vector2i.ZERO
+var load_r := 3
+var unload_r := 5
+var max_enemies := 40
+var streaming := false
+var pending_spawns: Array = []
+var last_center := Vector2i(999999, 999999)
 
 
 func _ready() -> void:
@@ -63,6 +69,7 @@ func _ready() -> void:
 	add_child(fx_root)
 	_setup_environment()
 	_setup_camera()
+	apply_settings()
 
 
 # ---------------------------------------------------------------- setup
@@ -119,12 +126,44 @@ func _setup_camera() -> void:
 	add_child(particles)
 
 
+## Applies the current graphics preset (see Settings) to lighting, effects and streaming.
+func apply_settings() -> void:
+	var v: Dictionary = Settings.v
+	load_r = v["load_r"]
+	unload_r = v["unload_r"]
+	max_enemies = v["max_enemies"]
+	var e := env.environment
+	e.glow_enabled = v["glow"]
+	e.ssao_enabled = v["ssao"] and Settings.forward_plus()
+	e.adjustment_enabled = v["glow"]
+	sun.shadow_enabled = v["shadows"]
+	sun.directional_shadow_max_distance = maxf(v["shadow_distance"], 1.0)
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL if v["shadow_distance"] < 50.0 else DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	camera.far = v["camera_far"]
+	particles.amount = v["particles"]
+	Mesher.set_dither(v["dither"])
+	if not v["sky"]:
+		zoom = minf(zoom, 26.0)
+	if gen:
+		apply_environment()
+	for k in chunks:
+		for l in chunks[k]["node"].get_children():
+			if l is OmniLight3D:
+				l.visible = v["chunk_lights"] > 0
+
+
+func _set_sky_colors(top: Color, horizon: Color) -> void:
+	sky_mat.sky_top_color = top
+	sky_mat.sky_horizon_color = horizon
+	env.environment.background_color = horizon.lerp(top, 0.35)
+
+
 func apply_environment() -> void:
 	var d: Dictionary = Data.dim(State.current_dim)
 	var e := env.environment
+	e.background_mode = Environment.BG_SKY if Settings.v["sky"] else Environment.BG_COLOR
 	if in_cave:
-		sky_mat.sky_top_color = Color(0.02, 0.02, 0.03)
-		sky_mat.sky_horizon_color = Color(0.03, 0.03, 0.04)
+		_set_sky_colors(Color(0.02, 0.02, 0.03), Color(0.03, 0.03, 0.04))
 		sky_mat.ground_horizon_color = Color(0.02, 0.02, 0.02)
 		sky_mat.ground_bottom_color = Color(0, 0, 0)
 		e.ambient_light_energy = 0.7
@@ -135,8 +174,7 @@ func apply_environment() -> void:
 		sun.light_energy = 0.12
 		sun.light_color = Color(0.6, 0.6, 0.8)
 	else:
-		sky_mat.sky_top_color = d["sky_top"]
-		sky_mat.sky_horizon_color = d["sky_horizon"]
+		_set_sky_colors(d["sky_top"], d["sky_horizon"])
 		sky_mat.ground_horizon_color = d["ground_horizon"]
 		sky_mat.ground_bottom_color = d["ground_horizon"].darkened(0.5)
 		sky_mat.sun_angle_max = 20.0
@@ -144,7 +182,7 @@ func apply_environment() -> void:
 		e.ambient_light_color = d["ambient"]
 		e.ambient_light_energy = 0.6
 		e.fog_light_color = d["fog"]
-		e.fog_density = d["fog_density"] * 0.35
+		e.fog_density = d["fog_density"] * 0.35 * Settings.v["fog_mult"]
 		sun.light_color = d["sun"]
 		sun.light_energy = d["sun_energy"]
 	_setup_particles(d["particles"] if not in_cave else "dust")
@@ -205,6 +243,9 @@ func clear_world() -> void:
 		_unload_chunk(k)
 	chunks.clear()
 	queue.clear()
+	job = {}
+	pending_spawns.clear()
+	last_center = Vector2i(999999, 999999)
 	for e in enemies + allies + villagers:
 		if is_instance_valid(e):
 			e.queue_free()
@@ -223,7 +264,11 @@ func clear_world() -> void:
 
 
 ## Synchronously builds the chunks around a point (used behind loading screens).
-func prebuild(center: Vector3, r: int = LOAD_R) -> void:
+func prebuild(center: Vector3, r: int = -1) -> void:
+	if r < 0:
+		r = load_r
+	r = mini(r, load_r)
+	job = {}
 	focus = center
 	var c := _chunk_of(center.x, center.z)
 	for dz in range(-r, r + 1):
@@ -399,34 +444,64 @@ func _process(delta: float) -> void:
 
 
 func _stream(_delta: float) -> void:
+	_run_pending_spawn()
 	var c := _chunk_of(focus.x, focus.z)
+	if c == last_center and queue.is_empty() and job.is_empty():
+		return
+	last_center = c
 	var wanted := {}
-	for dz in range(-LOAD_R, LOAD_R + 1):
-		for dx in range(-LOAD_R, LOAD_R + 1):
+	for dz in range(-load_r, load_r + 1):
+		for dx in range(-load_r, load_r + 1):
 			var k := Vector2i(c.x + dx, c.y + dz)
 			wanted[k] = true
 			if not chunks.has(k) and not queue.has(k):
 				queue.append(k)
 	for k in chunks.keys():
-		if absi(k.x - c.x) > UNLOAD_R or absi(k.y - c.y) > UNLOAD_R:
+		if absi(k.x - c.x) > unload_r or absi(k.y - c.y) > unload_r:
 			_unload_chunk(k)
-	queue = queue.filter(func(k): return absi(k.x - c.x) <= LOAD_R + 1 and absi(k.y - c.y) <= LOAD_R + 1)
+	var lr := load_r
+	queue = queue.filter(func(k): return absi(k.x - c.x) <= lr + 1 and absi(k.y - c.y) <= lr + 1)
 	queue.sort_custom(func(a, b): return (a - c).length_squared() < (b - c).length_squared())
+	# Chunks are generated a few rows at a time so slow CPUs (phones) never hitch.
+	var budget: int = Settings.v["chunk_budget_us"]
+	var rows: int = Settings.v["chunk_rows"]
 	var start := Time.get_ticks_usec()
-	while not queue.is_empty() and Time.get_ticks_usec() - start < 7000:
-		var k: Vector2i = queue.pop_front()
-		if not chunks.has(k):
-			_build_chunk(k)
+	var steps := 0
+	# Always make progress (one step), then only start another step while well inside the budget.
+	while steps == 0 or Time.get_ticks_usec() - start < budget / 2:
+		steps += 1
+		if job.is_empty():
+			if queue.is_empty():
+				break
+			var k: Vector2i = queue.pop_front()
+			if chunks.has(k):
+				continue
+			job_key = k
+			job = gen.begin_chunk(k.x, k.y)
+		if gen.step_chunk(job, rows):
+			var data: Dictionary = job["out"]
+			job = {}
+			if not chunks.has(job_key):
+				streaming = true
+				_finalize_chunk(job_key, data)
+				streaming = false
 
 
 func _build_chunk(k: Vector2i) -> void:
-	var data: Dictionary = gen.build_chunk(k.x, k.y)
+	_finalize_chunk(k, gen.build_chunk(k.x, k.y))
+
+
+func _finalize_chunk(k: Vector2i, data: Dictionary) -> void:
 	var node := Node3D.new()
 	chunks_root.add_child(node)
 	if data["mesh"]:
 		var mi := MeshInstance3D.new()
 		mi.mesh = data["mesh"]
 		node.add_child(mi)
+	if data.get("props"):
+		var pmi := MeshInstance3D.new()
+		pmi.mesh = data["props"]
+		node.add_child(pmi)
 	if data["liquid"]:
 		var lm := MeshInstance3D.new()
 		lm.mesh = data["liquid"]
@@ -434,7 +509,7 @@ func _build_chunk(k: Vector2i) -> void:
 		node.add_child(lm)
 	var lights := 0
 	for l in data["lights"]:
-		if lights >= 4:
+		if lights >= int(Settings.v["chunk_lights"]):
 			break
 		lights += 1
 		var ol := OmniLight3D.new()
@@ -455,33 +530,48 @@ func _build_chunk(k: Vector2i) -> void:
 		it.position = d["pos"]
 		it.setup(d)
 		rec["nodes"].append(it)
-	if menu_mode:
-		for p in data["people"]:
-			_spawn_villager(p)
-		return
 	for p in data["people"]:
-		_spawn_villager(p)
+		_later(k, func(): _spawn_villager(p))
+	if menu_mode:
+		return
 	# Enemy packs
 	var key_s := "%s:%d:%d" % [State.current_dim, k.x, k.y]
 	var recently: bool = chunk_cleared.has(key_s) and State.playtime - chunk_cleared[key_s] < 180.0
 	if not recently and player:
 		var pool := _enemy_pool()
 		for sp in data["spawns"]:
-			if U.flat_dist(sp, player.global_position) < 14.0 or enemies.size() >= MAX_ENEMIES:
+			if U.flat_dist(sp, player.global_position) < 14.0 or enemies.size() >= max_enemies:
 				continue
-			_spawn_pack(sp, pool, rec, 1 + U.hash2(k.x, k.y, int(sp.x)) % 3)
+			var n := 1 + U.hash2(k.x, k.y, int(sp.x)) % 3
+			_later(k, func(): _spawn_pack(sp, pool, rec, n))
 		if data.has("camp"):
 			var cp: Vector3 = data["camp"]
-			_spawn_pack(cp, pool, rec, 4)
-			var lvl := Game.enemy_level_at(cp)
-			var el = spawn_enemy(pool[randi() % pool.size()], cp + Vector3(1, 0, 1), lvl, true)
-			if el:
-				rec["mobs"].append(el)
+			_later(k, func(): _spawn_pack(cp, pool, rec, 4))
+			_later(k, func():
+				var el = spawn_enemy(pool[randi() % pool.size()], cp + Vector3(1, 0, 1), Game.enemy_level_at(cp), true)
+				if el:
+					rec["mobs"].append(el))
 		for ep in data.get("elite", []):
-			var lvl2 := Game.enemy_level_at(cave_return) + 1
-			var el2 = spawn_enemy(pool[randi() % pool.size()], ep, lvl2, true)
-			if el2:
-				rec["mobs"].append(el2)
+			_later(k, func():
+				var el2 = spawn_enemy(pool[randi() % pool.size()], ep, Game.enemy_level_at(cave_return) + 1, true)
+				if el2:
+					rec["mobs"].append(el2))
+
+
+## While streaming, entity spawns are spread out (one per frame) so slow devices never hitch.
+func _later(k: Vector2i, f: Callable) -> void:
+	if streaming:
+		pending_spawns.append([k, f])
+	else:
+		f.call()
+
+
+func _run_pending_spawn() -> void:
+	while not pending_spawns.is_empty():
+		var e: Array = pending_spawns.pop_front()
+		if chunks.has(e[0]):
+			e[1].call()
+			return
 
 
 func _enemy_pool() -> Array:
@@ -533,7 +623,7 @@ func _spawn_villager(p: Dictionary) -> void:
 func spawn_enemy(id: String, pos: Vector3, lvl: int, elite := false, team := 1) -> Node3D:
 	if not Data.enemies.has(id):
 		return null
-	if team == 1 and enemies.size() >= MAX_ENEMIES + 12:
+	if team == 1 and enemies.size() >= max_enemies + 12:
 		return null
 	var g := ground_at(pos.x, pos.z)
 	if g < -500.0 or is_blocked(pos.x, pos.z):
@@ -624,7 +714,7 @@ func _gameplay_tick(delta: float) -> void:
 
 
 func _ambient_spawn() -> void:
-	if enemies.size() >= 16:
+	if enemies.size() >= mini(16, max_enemies - 6):
 		return
 	if not gen.village_for_pos(player.global_position.x, player.global_position.z).is_empty():
 		return
@@ -667,7 +757,7 @@ func _update_camera(delta: float) -> void:
 		if Input.is_action_just_pressed("zoom_in") and not Game.ui_open:
 			zoom = clampf(zoom - 2.0, 12.0, 38.0)
 		if Input.is_action_just_pressed("zoom_out") and not Game.ui_open:
-			zoom = clampf(zoom + 2.0, 12.0, 38.0)
+			zoom = clampf(zoom + 2.0, 12.0, 38.0 if Settings.v["sky"] else 26.0)
 	var dist := zoom if not menu_mode else 46.0
 	var pitch := deg_to_rad(52.0 if not menu_mode else 35.0)
 	var yaw := deg_to_rad(cam_yaw + (rad_to_deg(menu_angle) * 2.0 if menu_mode else 0.0))
@@ -707,8 +797,7 @@ func _day_night(delta: float) -> void:
 	sun.light_energy = lerpf(0.18, d["sun_energy"], day)
 	sun.light_color = Color(0.55, 0.65, 1.0).lerp(d["sun"], day)
 	e.ambient_light_energy = lerpf(0.3, 0.6, day)
-	sky_mat.sky_top_color = Color(0.02, 0.03, 0.09).lerp(d["sky_top"], day)
-	sky_mat.sky_horizon_color = Color(0.08, 0.08, 0.18).lerp(d["sky_horizon"], day)
+	_set_sky_colors(Color(0.02, 0.03, 0.09).lerp(d["sky_top"], day), Color(0.08, 0.08, 0.18).lerp(d["sky_horizon"], day))
 	e.fog_light_color = Color(0.06, 0.07, 0.14).lerp(d["fog"], day)
 
 

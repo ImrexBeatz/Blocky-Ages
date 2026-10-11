@@ -409,9 +409,15 @@ func spawn_point() -> Vector3:
 
 # ---------------------------------------------------------------- chunk building
 
+## Synchronous build (used behind loading screens).
 func build_chunk(cx: int, cz: int) -> Dictionary:
-	var ox := cx * CHUNK
-	var oz := cz * CHUNK
+	var job := begin_chunk(cx, cz)
+	while not step_chunk(job, 1000):
+		pass
+	return job["out"]
+
+
+func begin_chunk(cx: int, cz: int) -> Dictionary:
 	var S := CHUNK + 2
 	var H := PackedInt32Array()
 	H.resize(S * S)
@@ -419,104 +425,173 @@ func build_chunk(cx: int, cz: int) -> Dictionary:
 	K.resize(S * S)
 	var B := PackedByteArray()
 	B.resize(S * S)
-	for j in S:
-		for i in S:
-			var info := height_info(ox + i - 1, oz + j - 1)
-			var k := j * S + i
-			H[k] = info.x
-			B[k] = info.y
-			K[k] = info.z
-	var m := Mesher.new()
-	var lm := Mesher.new()
 	var out := {"heights": PackedFloat32Array(), "blocked": {}, "interact": [], "people": [], "lights": [], "spawns": [], "decor": []}
 	out["heights"].resize(CHUNK * CHUNK)
 	var cols := PackedColorArray()
 	cols.resize(CHUNK * CHUNK)
 	out["colors"] = cols
-	var vil_here := village_for_pos(ox + 8.0, oz + 8.0)
-	var lq: Color = dimdef["liquid_color"]
-	for j in range(1, S - 1):
-		for i in range(1, S - 1):
-			var k := j * S + i
-			var x := ox + i - 1
-			var z := oz + j - 1
-			var h := H[k]
-			var kind := K[k]
-			var b: Dictionary = biomes[B[k]]
-			out["heights"][(j - 1) * CHUNK + (i - 1)] = ground_from_info(Vector3i(h, B[k], kind))
-			if kind == 2:
-				cols[(j - 1) * CHUNK + (i - 1)] = Color(0.03, 0.0, 0.06)
-				continue
-			var t := U.hashf(x, z, seed_v)
-			var top: Color = U.vary(b["top"], 0.05, t)
-			var side: Color = b["side"]
-			var deep: Color = b["deep"]
-			if kind == 1:
-				top = U.vary(deep, 0.08, t)
-			elif kind == 3:
-				top = U.vary(Color("#bfe0f5"), 0.04, t)
-				side = Color("#9cc8f0")
-			var fx := x + 0.5
-			var fz := z + 0.5
-			var vil := village_for_pos(fx, fz)
-			if not vil.is_empty() and _on_path(vil, fx, fz):
-				top = U.vary(Color("#9a8a6a") if dim_id != "void" else Color("#8a7aa8"), 0.08, t)
-			for a in arenas:
-				var ad := Vector2(fx - a["x"], fz - a["z"]).length()
-				if ad < ARENA_R:
-					var check := (int(floor(fx / 2.0)) + int(floor(fz / 2.0))) % 2 == 0
-					top = U.vary(Color("#6e6a72") if check else Color("#5a5660"), 0.05, t)
-					if ad > ARENA_R - 1.5:
-						top = Color("#3a3640")
-			var shade := clampf(0.8 + (h - sea) * 0.02, 0.6, 1.2)
-			cols[(j - 1) * CHUNK + (i - 1)] = (lq if kind == 1 else top) * Color(shade, shade, shade, 1.0)
-			# Top face with simple ambient occlusion from taller neighbours.
-			var ao := Vector4(1, 1, 1, 1)
-			var nW := H[k - 1] > h
-			var nE := H[k + 1] > h
-			var nN := H[k - S] > h
-			var nS := H[k + S] > h
-			ao.x = _ao(nW, nN, H[k - S - 1] > h)
-			ao.y = _ao(nE, nN, H[k - S + 1] > h)
-			ao.z = _ao(nE, nS, H[k + S + 1] > h)
-			ao.w = _ao(nW, nS, H[k + S - 1] > h)
-			var fy := float(h)
-			m.quad(Vector3(x, fy, z), Vector3(x + 1, fy, z), Vector3(x + 1, fy, z + 1), Vector3(x, fy, z + 1), Vector3.UP, top, 1, 1, ao)
-			_sides(m, x, z, h, [H[k + 1], H[k - 1], H[k + S], H[k - S]], [K[k + 1], K[k - 1], K[k + S], K[k - S]], side, deep, t)
-			if kind == 1:
-				var ly := float(sea) - (0.3 if liquid == "lava" else 0.12)
-				lm.quad(Vector3(x, ly, z), Vector3(x + 1, ly, z), Vector3(x + 1, ly, z + 1), Vector3(x, ly, z + 1), Vector3.UP, Color(1, 1, 1, 1))
-				continue
-			# Vegetation and decoration.
-			var prot := not vil.is_empty() or _near_arena(fx, fz, 4.0)
-			var tr := U.hashf(x, z, seed_v + 13)
-			if not prot and kind == 0 and tr < float(b["trees"]) and _flat_enough(H, k, S):
-				_tree(m, b["tree"], x, h, z, U.hash2(x, z, seed_v + 17), out)
-			elif kind == 0 and tr > 1.0 - float(b.get("flowers", 0.0)) and not prot:
-				var fc: Color = [Color("#e83a3a"), Color("#f5d63a"), Color("#ffffff"), Color("#5a8aff"), Color("#d65ad6")][U.hash2(x, z, 5) % 5]
-				m.box(Vector3(x + 0.45, fy, z + 0.45), Vector3(x + 0.55, fy + 0.35, z + 0.55), Color("#3a7a2a"))
-				m.box(Vector3(x + 0.38, fy + 0.35, z + 0.38), Vector3(x + 0.62, fy + 0.55, z + 0.62), fc)
-			elif kind == 0 and b.has("glow") and tr > 0.965 and not prot:
-				var gc: Color = b["glow"]
-				m.box(Vector3(x + 0.42, fy, z + 0.42), Vector3(x + 0.58, fy + 0.3, z + 0.58), Color("#d8d0c0"))
-				m.box(Vector3(x + 0.3, fy + 0.3, z + 0.3), Vector3(x + 0.7, fy + 0.5, z + 0.7), Color(gc.r, gc.g, gc.b, 0.0))
+	return {"cx": cx, "cz": cz, "ox": cx * CHUNK, "oz": cz * CHUNK, "H": H, "K": K, "B": B, "m": Mesher.new(), "lm": Mesher.new(), "pm": Mesher.new(),
+		"out": out, "cols": cols, "stage": 0, "row": 0, "lq": dimdef["liquid_color"],
+		"vil_here": village_for_pos(cx * CHUNK + 8.0, cz * CHUNK + 8.0)}
+
+
+## Advances a chunk job by up to `rows` rows of work so building can be spread across frames.
+## Returns true once the chunk is complete and job["out"] is ready.
+func step_chunk(job: Dictionary, rows: int) -> bool:
+	var S := CHUNK + 2
+	var H: PackedInt32Array = job["H"]
+	var K: PackedByteArray = job["K"]
+	var B: PackedByteArray = job["B"]
+	var ox: int = job["ox"]
+	var oz: int = job["oz"]
+	for r in rows:
+		var j: int = job["row"]
+		match int(job["stage"]):
+			0:
+				for i in S:
+					var info := height_info(ox + i - 1, oz + j - 1)
+					var k := j * S + i
+					H[k] = info.x
+					B[k] = info.y
+					K[k] = info.z
+				job["row"] = j + 1
+				if j + 1 >= S:
+					job["stage"] = 1
+					job["row"] = 1
+			1:
+				for i in range(1, S - 1):
+					_column(job, i, j)
+				job["row"] = j + 1
+				if j + 1 >= S - 1:
+					job["stage"] = 2
+			2:
+				_finish_chunk(job, 0)
+				job["stage"] = 3
+			3:
+				_finish_chunk(job, 1)
+				job["stage"] = 4
+			_:
+				_finish_chunk(job, 2)
+				return true
+	return false
+
+
+func _column(job: Dictionary, i: int, j: int) -> void:
+	var S := CHUNK + 2
+	var H: PackedInt32Array = job["H"]
+	var K: PackedByteArray = job["K"]
+	var B: PackedByteArray = job["B"]
+	var m: Mesher = job["m"]
+	var lm: Mesher = job["lm"]
+	var pm: Mesher = job["pm"]
+	var out: Dictionary = job["out"]
+	var cols: PackedColorArray = job["cols"]
+	var lq: Color = job["lq"]
+	var ox: int = job["ox"]
+	var oz: int = job["oz"]
+	var k := j * S + i
+	var x := ox + i - 1
+	var z := oz + j - 1
+	var h := H[k]
+	var kind := K[k]
+	var b: Dictionary = biomes[B[k]]
+	out["heights"][(j - 1) * CHUNK + (i - 1)] = ground_from_info(Vector3i(h, B[k], kind))
+	if kind == 2:
+		cols[(j - 1) * CHUNK + (i - 1)] = Color(0.03, 0.0, 0.06)
+		return
+	var t := U.hashf(x, z, seed_v)
+	var top: Color = U.vary(b["top"], 0.05, t)
+	var side: Color = b["side"]
+	var deep: Color = b["deep"]
+	if kind == 1:
+		top = U.vary(deep, 0.08, t)
+	elif kind == 3:
+		top = U.vary(Color("#bfe0f5"), 0.04, t)
+		side = Color("#9cc8f0")
+	var fx := x + 0.5
+	var fz := z + 0.5
+	var vil := village_for_pos(fx, fz)
+	if not vil.is_empty() and _on_path(vil, fx, fz):
+		top = U.vary(Color("#9a8a6a") if dim_id != "void" else Color("#8a7aa8"), 0.08, t)
+	for a in arenas:
+		var ad := Vector2(fx - a["x"], fz - a["z"]).length()
+		if ad < ARENA_R:
+			var check := (int(floor(fx / 2.0)) + int(floor(fz / 2.0))) % 2 == 0
+			top = U.vary(Color("#6e6a72") if check else Color("#5a5660"), 0.05, t)
+			if ad > ARENA_R - 1.5:
+				top = Color("#3a3640")
+	var shade := clampf(0.8 + (h - sea) * 0.02, 0.6, 1.2)
+	cols[(j - 1) * CHUNK + (i - 1)] = (lq if kind == 1 else top) * Color(shade, shade, shade, 1.0)
+	# Top face with simple ambient occlusion from taller neighbours.
+	var ao := Vector4(1, 1, 1, 1)
+	var nW := H[k - 1] > h
+	var nE := H[k + 1] > h
+	var nN := H[k - S] > h
+	var nS := H[k + S] > h
+	ao.x = _ao(nW, nN, H[k - S - 1] > h)
+	ao.y = _ao(nE, nN, H[k - S + 1] > h)
+	ao.z = _ao(nE, nS, H[k + S + 1] > h)
+	ao.w = _ao(nW, nS, H[k + S - 1] > h)
+	var fy := float(h)
+	m.quad(Vector3(x, fy, z), Vector3(x + 1, fy, z), Vector3(x + 1, fy, z + 1), Vector3(x, fy, z + 1), Vector3.UP, top, 1, 1, ao)
+	_sides(m, x, z, h, [H[k + 1], H[k - 1], H[k + S], H[k - S]], [K[k + 1], K[k - 1], K[k + S], K[k - S]], side, deep, t)
+	if kind == 1:
+		var ly := float(sea) - (0.3 if liquid == "lava" else 0.12)
+		lm.quad(Vector3(x, ly, z), Vector3(x + 1, ly, z), Vector3(x + 1, ly, z + 1), Vector3(x, ly, z + 1), Vector3.UP, Color(1, 1, 1, 1))
+		return
+	# Vegetation and decoration.
+	var prot := not vil.is_empty() or _near_arena(fx, fz, 4.0)
+	var tr := U.hashf(x, z, seed_v + 13)
+	if not prot and kind == 0 and tr < float(b["trees"]) and _flat_enough(H, k, S):
+		_tree(pm, b["tree"], x, h, z, U.hash2(x, z, seed_v + 17), out)
+	elif kind == 0 and tr > 1.0 - float(b.get("flowers", 0.0)) and not prot:
+		var fc: Color = [Color("#e83a3a"), Color("#f5d63a"), Color("#ffffff"), Color("#5a8aff"), Color("#d65ad6")][U.hash2(x, z, 5) % 5]
+		pm.box(Vector3(x + 0.45, fy, z + 0.45), Vector3(x + 0.55, fy + 0.35, z + 0.55), Color("#3a7a2a"))
+		pm.box(Vector3(x + 0.38, fy + 0.35, z + 0.38), Vector3(x + 0.62, fy + 0.55, z + 0.62), fc)
+	elif kind == 0 and b.has("glow") and tr > 0.965 and not prot:
+		var gc: Color = b["glow"]
+		pm.box(Vector3(x + 0.42, fy, z + 0.42), Vector3(x + 0.58, fy + 0.3, z + 0.58), Color("#d8d0c0"))
+		pm.box(Vector3(x + 0.3, fy + 0.3, z + 0.3), Vector3(x + 0.7, fy + 0.5, z + 0.7), Color(gc.r, gc.g, gc.b, 0.0))
+
+
+## Final work in three parts (structures / props & spawns / mesh commit) so each step stays short.
+func _finish_chunk(job: Dictionary, part: int) -> void:
+	var S := CHUNK + 2
+	var H: PackedInt32Array = job["H"]
+	var K: PackedByteArray = job["K"]
+	var m: Mesher = job["m"]
+	var lm: Mesher = job["lm"]
+	var pm: Mesher = job["pm"]
+	var out: Dictionary = job["out"]
+	var lq: Color = job["lq"]
+	var ox: int = job["ox"]
+	var oz: int = job["oz"]
+	var cx: int = job["cx"]
+	var cz: int = job["cz"]
+	var vil_here: Dictionary = job["vil_here"]
+	if part == 2:
+		out["mesh"] = null if m.is_empty() else m.commit(Mesher.terrain_material())
+		out["liquid"] = null if lm.is_empty() else lm.commit(Mesher.liquid_material(liquid, lq))
+		out["props"] = null if pm.is_empty() else pm.commit(Mesher.props_material())
+		return
 	# Structures anchored in this chunk.
-	if true:
+	if part == 0:
 		for v in villages_near(Vector3(ox + 8, 0, oz + 8), 60.0):
 			var lay := _village_layout(v)
 			for p in lay["pieces"]:
 				if p["x"] >= ox and p["x"] < ox + CHUNK and p["z"] >= oz and p["z"] < oz + CHUNK:
-					_build_piece(m, p, v, out)
+					_build_piece(pm, p, v, out)
 			for person in lay["people"]:
 				if person["x"] >= ox and person["x"] < ox + CHUNK and person["z"] >= oz and person["z"] < oz + CHUNK:
 					var pp: Dictionary = person.duplicate()
 					pp["village"] = v["name"]
 					pp["vkey"] = v["key"]
 					out["people"].append(pp)
+		return
 	for a in arenas:
-		_arena_pieces(m, a, ox, oz, out)
+		_arena_pieces(pm, a, ox, oz, out)
 	for p in pois_in_rect(ox, oz, ox + CHUNK, oz + CHUNK):
-		_build_poi(m, p, out)
+		_build_poi(pm, p, out)
 	# Enemy spawn points (none in villages or arenas).
 	if vil_here.is_empty():
 		var dens := 0.55 + clampf(Vector2(ox, oz).length() / 600.0, 0.0, 0.6)
@@ -532,9 +607,6 @@ func build_chunk(cx: int, cz: int) -> Dictionary:
 			var si := (sz - oz + 1) * S + (sx - ox + 1)
 			if K[si] == 0 or K[si] == 3:
 				out["spawns"].append(Vector3(sx + 0.5, H[si], sz + 0.5))
-	out["mesh"] = null if m.is_empty() else m.commit(Mesher.terrain_material())
-	out["liquid"] = null if lm.is_empty() else lm.commit(Mesher.liquid_material(liquid, lq))
-	return out
 
 
 func _ao(a: bool, b: bool, c: bool) -> float:

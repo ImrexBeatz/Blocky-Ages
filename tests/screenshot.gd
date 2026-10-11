@@ -8,9 +8,9 @@ var out_dir := "user://shots"
 
 
 func _ready() -> void:
-	var args := OS.get_cmdline_user_args()
-	if args.size() > 0:
-		out_dir = args[0]
+	for a in OS.get_cmdline_user_args():
+		if not a.begins_with("--"):
+			out_dir = a
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	main = load("res://scenes/main.tscn").instantiate()
 	add_child(main)

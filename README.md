@@ -12,6 +12,34 @@ An endless, Minecraft Dungeons-inspired blocky action-RPG made in **Godot 4.3**.
 
 Saves go to Godot's user data folder (`user://blockydungeons_save.json`). The game autosaves every minute and when you travel, beat a boss, or quit from the pause menu.
 
+## Playing on a phone (Android)
+
+The game detects phones automatically. On a phone or a low-RAM device (under 3 GB) it starts on the **Low (Phone)** graphics preset. This preset is tuned for budget hardware such as the **Samsung Galaxy A03 Core** (Unisoc SC9863A, PowerVR GE8322, 2 GB RAM). It uses:
+
+- The OpenGL compatibility renderer and a 60 FPS cap.
+- A 70% render scale with no MSAA.
+- No shadows, glow, SSAO, procedural sky or dynamic lights. Glowing blocks still glow.
+- Shorter view distance, fewer enemies (22) and particles, and a smaller, slower-updating minimap.
+- Chunk generation spread over many frames, one row at a time, with new enemies and villagers spawned one per frame, so exploring never hitches.
+- The "see-through" occlusion shader only on trees and buildings, never on the ground. Shader `discard` is expensive on PowerVR GPUs.
+
+You can change the preset at any time in **Settings** (title screen or pause menu), with Auto, Low, Medium, High or Ultra. Settings also has a FPS counter toggle.
+
+**Touch controls:**
+- Drag anywhere on the left half of the screen for a floating joystick.
+- The right side has buttons for Attack, Bow, Roll, artifacts 1, 2 and 3, Potion and Use.
+- Menu buttons on the left open the Bag, Quests, Skills, Map, Codex and Menu.
+- Attacks automatically aim at the nearest enemy.
+
+**Auto-Attack (phone only):** turn it on in Settings. Your hero automatically swings at enemies in melee reach and shoots the nearest enemy within 12 blocks.
+
+To try the phone experience on a desktop, run `godot --path . -- --force-mobile`.
+
+**Building the APK:**
+1. Install the Godot 4.3 Android export templates.
+2. In Editor Settings, set the Android SDK path and a debug keystore.
+3. Use the included **Android** export preset (Project -> Export). It builds for armeabi-v7a and arm64-v8a, in landscape and immersive mode.
+
 ## Controls
 
 | Action | Keyboard / Mouse | Gamepad |
@@ -87,6 +115,7 @@ The `tests/` scenes run headless:
 godot --headless --path . tests/smoke_test.tscn   # world gen, combat, all artifacts, all bosses, caves, travel, save/load
 godot --headless --path . tests/flow_test.tscn    # full UI flow: menu -> creator -> game -> every screen -> death -> travel -> continue
 godot --headless --path . tests/story_test.tscn   # entire main story chain and side-quest generation
+godot --headless --path . tests/mobile_test.tscn -- --force-mobile   # phone preset, touch joystick/buttons, auto-attack, streaming budget
 ```
 
 `tests/screenshot.tscn` captures screenshots, and it needs a display. On Linux:

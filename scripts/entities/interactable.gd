@@ -31,6 +31,7 @@ func setup(d: Dictionary) -> void:
 			U.box(lid, Vector3(0.16, 0.2, 0.06), Vector3(0, 0.0, -0.72), trim, 0.6)
 			if tier >= 2:
 				var l := OmniLight3D.new()
+				l.visible = Settings.v["dynamic_lights"]
 				l.light_color = Color("#ffd27a")
 				l.light_energy = 0.8
 				l.omni_range = 3.5
@@ -61,6 +62,7 @@ func setup(d: Dictionary) -> void:
 				var c: Color = Data.powerups[shrine_power]["color"]
 				U.box(orb, Vector3(0.5, 0.5, 0.5), Vector3(0, 0.6, 0), c, 3.0)
 				var l := OmniLight3D.new()
+				l.visible = Settings.v["dynamic_lights"]
 				l.light_color = c
 				l.light_energy = 2.0
 				l.omni_range = 6.0

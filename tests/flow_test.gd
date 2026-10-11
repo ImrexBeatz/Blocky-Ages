@@ -70,6 +70,8 @@ func _process(delta: float) -> void:
 				d.setup(v)
 				main._open(d)
 				await get_tree().process_frame
+				if not is_instance_valid(d):
+					continue
 				for sv in ["quests", "trade", "upgrade", "enchant", "artifact", "potions", "lore"]:
 					d.service = sv
 					d.refresh()

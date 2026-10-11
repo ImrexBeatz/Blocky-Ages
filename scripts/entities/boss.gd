@@ -37,6 +37,7 @@ func setup_boss(d: Dictionary, lvl: int, center: Vector3) -> void:
 	m.scale = Vector3.ONE * scale_f
 	set_model(m, d["model"])
 	var l := OmniLight3D.new()
+	l.visible = Settings.v["dynamic_lights"]
 	l.light_color = Color(d["c3"]).lerp(Color.WHITE, 0.55)
 	l.light_energy = 0.9
 	l.omni_range = 3.0 * scale_f

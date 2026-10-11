@@ -17,6 +17,8 @@ const MapScreen = preload("res://scripts/ui/map_screen.gd")
 const DialogueScreen = preload("res://scripts/ui/dialogue_screen.gd")
 const GateScreen = preload("res://scripts/ui/gate_screen.gd")
 const BoardScreen = preload("res://scripts/ui/board_screen.gd")
+const SettingsScreen = preload("res://scripts/ui/settings_screen.gd")
+const TouchControls = preload("res://scripts/ui/touch_controls.gd")
 
 const CONTROLS := """[color=#f2c14e][b]Movement[/b][/color]   WASD / Arrow keys / Left stick
 [color=#f2c14e][b]Melee attack[/b][/color]   Left mouse / J  (hold for a 3-hit combo; the 3rd hit is a heavy finisher)
@@ -63,6 +65,9 @@ func _ready() -> void:
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(fade)
+	Settings.apply()
+	var touch := TouchControls.new()
+	ui.add_child(touch)
 	Game.open_screen.connect(_on_open_screen)
 	Game.open_dialogue.connect(_on_dialogue)
 	Game.player_died.connect(_on_player_died)
@@ -85,6 +90,7 @@ func _show_title() -> void:
 	menu.new_game.connect(_on_new_game)
 	menu.continue_game.connect(_on_continue)
 	menu.show_controls.connect(func(): _info_screen("Controls & Tips", CONTROLS))
+	menu.show_settings.connect(func(): _open(SettingsScreen.new()))
 
 
 func _on_new_game() -> void:
@@ -112,6 +118,7 @@ func _show_title_menu_only() -> void:
 	menu.new_game.connect(_on_new_game)
 	menu.continue_game.connect(_on_continue)
 	menu.show_controls.connect(func(): _info_screen("Controls & Tips", CONTROLS))
+	menu.show_settings.connect(func(): _open(SettingsScreen.new()))
 
 
 func _on_continue() -> void:
@@ -228,27 +235,9 @@ func _pause_menu() -> void:
 	v.add_child(K.button("Controls & Tips", func():
 		s.close()
 		_info_screen("Controls & Tips", CONTROLS), 400, 22))
-	v.add_child(K.label("Music volume", 16, K.DIM))
-	var ms := HSlider.new()
-	ms.min_value = 0.0
-	ms.max_value = 1.0
-	ms.step = 0.05
-	ms.value = Sfx.music_volume
-	ms.value_changed.connect(func(val):
-		Sfx.music_volume = val
-		Sfx.music_player.volume_db = linear_to_db(maxf(val, 0.001)) - 10.0)
-	v.add_child(ms)
-	v.add_child(K.label("Effects volume", 16, K.DIM))
-	var fs := HSlider.new()
-	fs.min_value = 0.0
-	fs.max_value = 1.0
-	fs.step = 0.05
-	fs.value = Sfx.sfx_volume
-	fs.value_changed.connect(func(val): Sfx.sfx_volume = val)
-	v.add_child(fs)
-	v.add_child(K.button("Toggle Fullscreen", func():
-		var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN), 400, 20))
+	v.add_child(K.button("Settings", func():
+		s.close()
+		_open(SettingsScreen.new()), 400, 22))
 	v.add_child(K.button("Save & Quit to Title", func():
 		_store_position()
 		State.save_game()

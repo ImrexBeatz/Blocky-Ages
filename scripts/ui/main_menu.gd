@@ -6,6 +6,7 @@ const K = preload("res://scripts/ui/ui_kit.gd")
 signal new_game
 signal continue_game
 signal show_controls
+signal show_settings
 
 
 func _ready() -> void:
@@ -50,6 +51,7 @@ void fragment() {
 		else:
 			new_game.emit(), 320, 24))
 	v.add_child(K.button("Controls", func(): show_controls.emit(), 320, 24))
+	v.add_child(K.button("Settings", func(): show_settings.emit(), 320, 24))
 	v.add_child(K.button("Quit", func(): get_tree().quit(), 320, 24))
 	v.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT, Control.PRESET_MODE_MINSIZE, 110)
 	var foot := K.label("Five realms. Twenty bosses. An endless world.   v1.0", 16, K.DIM)

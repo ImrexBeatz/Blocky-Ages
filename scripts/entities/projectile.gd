@@ -45,6 +45,7 @@ func setup(p_kind: String, from: Vector3, dir: Vector3, spd: float, p_team: int,
 			mesh.mesh = U.box_mesh(Vector3(0.35, 0.35, 0.35))
 			mesh.material_override = U.mat(color, 3.0, 0.5, false)
 			var l := OmniLight3D.new()
+			l.visible = Settings.v["dynamic_lights"]
 			l.light_color = color
 			l.light_energy = 1.5
 			l.omni_range = 3.5

@@ -182,6 +182,15 @@ func find_nearest_poi(type: String, _from: Vector3, _r := 0.0) -> Dictionary:
 	return {}
 
 
+func begin_chunk(cx: int, cz: int) -> Dictionary:
+	return {"cx": cx, "cz": cz, "out": {}}
+
+
+func step_chunk(job: Dictionary, _rows: int) -> bool:
+	job["out"] = build_chunk(job["cx"], job["cz"])
+	return true
+
+
 func build_chunk(cx: int, cz: int) -> Dictionary:
 	var ox := cx * CHUNK
 	var oz := cz * CHUNK
@@ -222,6 +231,7 @@ func build_chunk(cx: int, cz: int) -> Dictionary:
 	if not any_floor:
 		out["mesh"] = null if m.is_empty() else m.commit(Mesher.terrain_material())
 		out["liquid"] = null
+		out["props"] = null
 		return out
 	var rng := RandomNumberGenerator.new()
 	for ri in rooms.size():
@@ -271,6 +281,7 @@ func build_chunk(cx: int, cz: int) -> Dictionary:
 			out["blocked"][Vector2i(sx, sz)] = true
 	out["mesh"] = m.commit(Mesher.terrain_material())
 	out["liquid"] = null
+	out["props"] = null
 	return out
 
 

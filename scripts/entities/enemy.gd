@@ -49,6 +49,7 @@ func setup(d: Dictionary, lvl: int, p_elite := false, p_team := 1) -> void:
 	cooldown = randf_range(0.3, atk_cd)
 	if elite:
 		var aura := OmniLight3D.new()
+		aura.visible = Settings.v["dynamic_lights"]
 		aura.light_color = Color("#ff4a2a") if team == 1 else Color("#7ad6ff")
 		aura.light_energy = 1.5
 		aura.omni_range = 4.0

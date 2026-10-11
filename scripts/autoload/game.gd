@@ -62,8 +62,9 @@ func _setup_input() -> void:
 	_axis("move_down", JOY_AXIS_LEFT_Y, 1.0)
 	_axis("move_left", JOY_AXIS_LEFT_X, -1.0)
 	_axis("move_right", JOY_AXIS_LEFT_X, 1.0)
-	_key("attack", [KEY_J], MOUSE_BUTTON_LEFT, JOY_BUTTON_X)
-	_key("ranged", [KEY_K], MOUSE_BUTTON_RIGHT, JOY_BUTTON_RIGHT_SHOULDER)
+	var mobile: bool = Settings.is_mobile
+	_key("attack", [KEY_J], -1 if mobile else MOUSE_BUTTON_LEFT, JOY_BUTTON_X)
+	_key("ranged", [KEY_K], -1 if mobile else MOUSE_BUTTON_RIGHT, JOY_BUTTON_RIGHT_SHOULDER)
 	_key("roll", [KEY_SPACE], -1, JOY_BUTTON_A)
 	_key("art1", [KEY_1], -1, JOY_BUTTON_Y)
 	_key("art2", [KEY_2], -1, JOY_BUTTON_B)

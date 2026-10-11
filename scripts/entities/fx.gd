@@ -42,7 +42,7 @@ static func burst(pos: Vector3, color: Color, amount := 14, speed := 4.0, size :
 	var p := CPUParticles3D.new()
 	p.one_shot = true
 	p.emitting = false
-	p.amount = amount
+	p.amount = maxi(2, int(amount * float(Settings.v["fx_scale"])))
 	p.lifetime = life
 	p.explosiveness = 0.95
 	p.direction = Vector3.UP
@@ -155,9 +155,10 @@ static func lightning(from: Vector3, to: Vector3, color := Color(0.75, 0.85, 1.0
 
 static func light_flash(pos: Vector3, color: Color, energy := 4.0, rng := 8.0, dur := 0.3) -> void:
 	var parent := _parent()
-	if parent == null:
+	if parent == null or not Settings.v["dynamic_lights"]:
 		return
 	var l := OmniLight3D.new()
+	l.visible = Settings.v["dynamic_lights"]
 	l.light_color = color
 	l.light_energy = energy
 	l.omni_range = rng

@@ -224,6 +224,7 @@ func _physics_process(delta: float) -> void:
 	_update_attack(delta)
 	_update_interact(delta)
 	if Game.world:
+		light.visible = Game.world.in_cave or Settings.v["dynamic_lights"]
 		light.omni_range = 14.0 if Game.world.in_cave else (9.0 if Game.world.is_night() else 6.0)
 		light.light_energy = 1.6 if Game.world.in_cave else (1.0 if Game.world.is_night() else 0.35)
 
@@ -300,8 +301,23 @@ func _timers(delta: float) -> void:
 					e.apply_status("burn", 2.0, 4.0 * aura * Game.dmg_scale(State.level))
 
 
+func _nearest_enemy(max_d: float) -> Node3D:
+	var best: Node3D = null
+	var bd := max_d
+	for e in Game.world.targets_for(0):
+		var d := U.flat_dist(e.global_position, global_position)
+		if d < bd:
+			bd = d
+			best = e
+	return best
+
+
 func _aim() -> void:
 	if Game.camera == null:
+		return
+	if Settings.is_mobile:
+		var t := _nearest_enemy(13.0)
+		aim_point = t.global_position if t else global_position + facing * 6.0
 		return
 	if not Input.get_connected_joypads().is_empty() and Input.get_vector("move_left", "move_right", "move_up", "move_down").length() > 0.2:
 		aim_point = global_position + facing * 6.0
@@ -336,7 +352,9 @@ func _handle_actions(move_dir: Vector3) -> void:
 		return
 	if roll_t > 0.0 or dash_t > 0.0:
 		return
-	if Input.is_action_pressed("attack") and attack_cd <= 0.0:
+	if Settings.is_mobile and Settings.auto_attack and _auto_attack():
+		pass
+	elif Input.is_action_pressed("attack") and attack_cd <= 0.0:
 		_start_swing()
 	elif Input.is_action_pressed("ranged") and ranged_cd <= 0.0 and attack_t <= 0.0:
 		_fire()
@@ -350,6 +368,26 @@ func _handle_actions(move_dir: Vector3) -> void:
 			interact_target.interact()
 		elif interact_target.has_method("use"):
 			interact_target.use()
+
+
+## Phone-only: swing at enemies in reach, otherwise shoot the nearest enemy in range. True if it acted.
+func _auto_attack() -> bool:
+	if attack_t > 0.0:
+		return true
+	var reach: float = State.def_of(State.equipment.get("melee")).get("range", 2.4) if State.equipment.get("melee") != null else 0.0
+	var close := _nearest_enemy(reach + 0.6)
+	if close and attack_cd <= 0.0:
+		aim_point = close.global_position
+		_start_swing()
+		return true
+	if close:
+		return false
+	var far := _nearest_enemy(12.0)
+	if far and ranged_cd <= 0.0 and State.equipment.get("ranged") != null:
+		aim_point = far.global_position
+		_fire()
+		return true
+	return false
 
 
 func _weapon_speed() -> float:

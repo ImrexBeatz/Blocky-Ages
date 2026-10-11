@@ -61,6 +61,7 @@ func setup_item(inst: Dictionary, pos: Vector3) -> void:
 	beam.position.y = 3.0
 	add_child(beam)
 	var l := OmniLight3D.new()
+	l.visible = Settings.v["dynamic_lights"]
 	l.light_color = rc
 	l.light_energy = 1.0 + inst["rarity"] * 0.5
 	l.omni_range = 4.0
@@ -78,6 +79,7 @@ func setup_powerup(id: String, pos: Vector3) -> void:
 	U.box(visual, Vector3(0.45, 0.45, 0.45), Vector3.ZERO, c, 3.0)
 	U.box(visual, Vector3(0.25, 0.25, 0.25), Vector3.ZERO, Color.WHITE, 4.0)
 	var l := OmniLight3D.new()
+	l.visible = Settings.v["dynamic_lights"]
 	l.light_color = c
 	l.light_energy = 2.0
 	l.omni_range = 5.0

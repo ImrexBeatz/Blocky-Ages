@@ -212,6 +212,7 @@ static func _totem(p: Vector3, c: Color) -> void:
 	U.box(t, Vector3(0.4, 1.6, 0.4), Vector3(0, 0.8, 0), Color("#6b4a2b"))
 	U.box(t, Vector3(0.6, 0.6, 0.6), Vector3(0, 1.8, 0), c, 2.0)
 	var l := OmniLight3D.new()
+	l.visible = Settings.v["dynamic_lights"]
 	l.light_color = c
 	l.omni_range = 6.0
 	l.position.y = 2.0

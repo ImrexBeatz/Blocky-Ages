@@ -164,7 +164,7 @@ func stop_music() -> void:
 
 
 func _render_music(dimid: String, scale: Array, base: float) -> void:
-	var rate := 16000
+	var rate: int = Settings.v.get("music_rate", 16000)
 	var dur := 19.2
 	var n := int(dur * rate)
 	var out := PackedFloat32Array()
